@@ -1,0 +1,108 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-optuna}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-optuna}
+      POSTGRES_DB: ${POSTGRES_DB:-optuna}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-optuna}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mlflow:
+    build: ./mlflow
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: mlflow
+      POSTGRES_USER: ${POSTGRES_USER:-optuna}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-optuna}
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build: ./backend
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-optuna}
+      POSTGRES_USER: ${POSTGRES_USER:-optuna}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-optuna}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      ENABLE_K8S: "false"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  dashboard:
+    build:
+      context: ./dashboard
+      args:
+        REACT_APP_API_URL: http://localhost:8000
+        REACT_APP_WS_URL: ws://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  worker:
+    build: ./worker
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-optuna}
+      POSTGRES_USER: ${POSTGRES_USER:-optuna}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-optuna}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      STUDY_NAME: ${STUDY_NAME:-cifar10-hpo}
+      N_TRIALS: ${N_TRIALS:-20}
+      MAX_EPOCHS: ${MAX_EPOCHS:-10}
+      PRUNER_TYPE: ${PRUNER_TYPE:-hyperband}
+      LR_LOW: ${LR_LOW:-1e-5}
+      LR_HIGH: ${LR_HIGH:-1e-1}
+      BATCH_SIZES: ${BATCH_SIZES:-[32, 64, 128]}
+      NUM_LAYERS_LOW: ${NUM_LAYERS_LOW:-2}
+      NUM_LAYERS_HIGH: ${NUM_LAYERS_HIGH:-5}
+      DROPOUT_LOW: ${DROPOUT_LOW:-0.1}
+      DROPOUT_HIGH: ${DROPOUT_HIGH:-0.5}
+      OPTIMIZERS: ${OPTIMIZERS:-["adam", "sgd", "adamw", "rmsprop"]}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+    deploy:
+      replicas: 2
+
+volumes:
+  postgres_data:

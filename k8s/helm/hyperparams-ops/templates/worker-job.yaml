@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hpo-worker
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: hpo-worker
+    study: {{ .Values.worker.studyName }}
+spec:
+  parallelism: {{ .Values.worker.parallelism }}
+  completions: {{ .Values.worker.parallelism }}
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: hpo-worker
+        study: {{ .Values.worker.studyName }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: worker
+          image: {{ .Values.worker.image }}
+          envFrom:
+            - configMapRef:
+                name: hyperparams-config
+          resources:
+            requests:
+              cpu: {{ .Values.worker.resources.requests.cpu }}
+              memory: {{ .Values.worker.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.worker.resources.limits.cpu }}
+              memory: {{ .Values.worker.resources.limits.memory }}

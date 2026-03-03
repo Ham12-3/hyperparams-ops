@@ -1,0 +1,92 @@
+# -- Global configuration
+namespace: hyperparams-ops
+
+# -- PostgreSQL
+postgres:
+  image: postgres:16-alpine
+  user: optuna
+  password: optuna
+  database: optuna
+  storage: 5Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# -- Redis
+redis:
+  image: redis:7-alpine
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# -- MLflow
+mlflow:
+  image: hyperparams-ops-mlflow:latest
+  artifactRoot: /mlflow/artifacts
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# -- FastAPI Backend
+backend:
+  image: hyperparams-ops-backend:latest
+  replicas: 1
+  enableK8s: "true"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+# -- React Dashboard
+dashboard:
+  image: hyperparams-ops-dashboard:latest
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# -- Worker
+worker:
+  image: hyperparams-ops-worker:latest
+  parallelism: 4
+  trialsPerWorker: 10
+  maxEpochs: "10"
+  prunerType: hyperband
+  studyName: cifar10-hpo
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+# -- Search space
+searchSpace:
+  lrLow: "1e-5"
+  lrHigh: "1e-1"
+  batchSizes: "[32, 64, 128]"
+  numLayersLow: "2"
+  numLayersHigh: "5"
+  dropoutLow: "0.1"
+  dropoutHigh: "0.5"
+  optimizers: '["adam", "sgd", "adamw", "rmsprop"]'
